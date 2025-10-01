@@ -1,0 +1,1058 @@
+import React, { useState, useEffect, createContext, useContext } from 'react';
+import { 
+  ChevronRight, Users, Calendar, Award, LogIn, LogOut, 
+  Menu, X, TrendingUp, Clock, Building2, 
+  Sun, Moon, Shield, UserCheck, Settings,
+  BarChart3, FileText, Bell, Search, Filter,
+  Plus, Edit, Trash2, Eye, CheckCircle, XCircle,
+  Activity, PieChart, List, Home
+} from 'lucide-react';
+
+// API Configuration
+const API_URL = 'http://localhost:8000/api';
+
+// Theme Context
+const ThemeContext = createContext();
+
+const useTheme = () => {
+  const context = useContext(ThemeContext);
+  if (!context) {
+    throw new Error('useTheme must be used within ThemeProvider');
+  }
+  return context;
+};
+
+const ThemeProvider = ({ children }) => {
+  const [theme, setTheme] = useState(() => {
+    return localStorage.getItem('theme') || 'light';
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('theme', theme);
+    
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+      document.body.style.background = '#0f172a';
+    } else {
+      document.documentElement.classList.remove('dark');
+      document.body.style.background = '#ffffff';
+    }
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'light' ? 'dark' : 'light');
+  };
+
+  return (
+    <ThemeContext.Provider value={{ theme, toggleTheme }}>
+      {children}
+    </ThemeContext.Provider>
+  );
+};
+
+// Auth Context
+const AuthContext = createContext(null);
+
+const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within AuthProvider');
+  }
+  return context;
+};
+
+const AuthProvider = ({ children }) => {
+  const [user, setUser] = useState(null);
+  const [token, setToken] = useState(localStorage.getItem('token'));
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (token) {
+      fetchUserProfile();
+    } else {
+      setLoading(false);
+    }
+  }, [token]);
+
+  const fetchUserProfile = async () => {
+    try {
+      const userData = JSON.parse(localStorage.getItem('user') || '{}');
+      setUser(userData);
+    } catch (error) {
+      console.error('Error fetching profile:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const login = async (username, password) => {
+    try {
+      const response = await fetch(`${API_URL}/auth/login/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+      const data = await response.json();
+      
+      if (response.ok) {
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('user', JSON.stringify(data.user));
+        setToken(data.token);
+        setUser(data.user);
+        return { success: true };
+      }
+      return { success: false, error: data.detail || 'Ошибка входа' };
+    } catch (error) {
+      return { success: false, error: 'Ошибка сети' };
+    }
+  };
+
+  const logout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    setToken(null);
+    setUser(null);
+  };
+
+  return (
+    <AuthContext.Provider value={{ user, token, loading, login, logout }}>
+      {children}
+    </AuthContext.Provider>
+  );
+};
+
+// Navigation Component
+const Navigation = ({ currentView, setCurrentView }) => {
+  const { user, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 10);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const getUserIcon = () => {
+    if (user?.user_type === 'admin') return <Shield className="h-5 w-5 text-yellow-400" />;
+    if (user?.user_type === 'deputy') return <UserCheck className="h-5 w-5 text-blue-400" />;
+    return null;
+  };
+
+  return (
+    <>
+      <nav className={`fixed top-0 w-full z-50 transition-all duration-300 ${
+        scrolled 
+          ? theme === 'dark' 
+            ? 'bg-gray-900/95 backdrop-blur-md shadow-lg' 
+            : 'bg-white/95 backdrop-blur-md shadow-lg'
+          : 'bg-transparent'
+      }`}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between h-16">
+            <div className="flex items-center">
+              <button 
+                onClick={() => setCurrentView('main')}
+                className="flex items-center"
+              >
+                <div className={`p-2 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600`}>
+                  <Building2 className="h-8 w-8 text-white" />
+                </div>
+                <span className={`ml-3 text-xl font-bold ${
+                  scrolled 
+                    ? theme === 'dark' ? 'text-white' : 'text-gray-900'
+                    : 'text-white'
+                }`}>
+                  Парламент РФ
+                </span>
+              </button>
+            </div>
+            
+            <div className="hidden md:flex items-center space-x-6">
+              {user?.user_type === 'admin' && (
+                <button
+                  onClick={() => setCurrentView('admin')}
+                  className={`flex items-center space-x-2 hover:text-blue-500 transition ${
+                    scrolled 
+                      ? theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                      : 'text-white/90 hover:text-white'
+                  }`}
+                >
+                  <Settings className="h-5 w-5" />
+                  <span>Админ панель</span>
+                </button>
+              )}
+              
+              {user?.user_type === 'deputy' && (
+                <button
+                  onClick={() => setCurrentView('deputy')}
+                  className={`flex items-center space-x-2 hover:text-blue-500 transition ${
+                    scrolled 
+                      ? theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                      : 'text-white/90 hover:text-white'
+                  }`}
+                >
+                  <BarChart3 className="h-5 w-5" />
+                  <span>Личный кабинет</span>
+                </button>
+              )}
+
+              {(!user || currentView !== 'main') && (
+                <>
+                  <a href="#deputies" className={`hover:text-blue-500 transition ${
+                    scrolled 
+                      ? theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                      : 'text-white/90 hover:text-white'
+                  }`}>
+                    Депутаты
+                  </a>
+                  <a href="#sessions" className={`hover:text-blue-500 transition ${
+                    scrolled 
+                      ? theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                      : 'text-white/90 hover:text-white'
+                  }`}>
+                    Заседания
+                  </a>
+                  <a href="#parties" className={`hover:text-blue-500 transition ${
+                    scrolled 
+                      ? theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                      : 'text-white/90 hover:text-white'
+                  }`}>
+                    Партии
+                  </a>
+                  <a href="#stats" className={`hover:text-blue-500 transition ${
+                    scrolled 
+                      ? theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                      : 'text-white/90 hover:text-white'
+                  }`}>
+                    Статистика
+                  </a>
+                </>
+              )}
+
+              <button
+                onClick={toggleTheme}
+                className={`p-2 rounded-lg transition-all ${
+                  scrolled 
+                    ? theme === 'dark' ? 'hover:bg-gray-800' : 'hover:bg-gray-100'
+                    : 'hover:bg-white/20'
+                }`}
+              >
+                {theme === 'dark' ? (
+                  <Sun className={`h-5 w-5 ${scrolled ? 'text-yellow-500' : 'text-yellow-300'}`} />
+                ) : (
+                  <Moon className={`h-5 w-5 ${scrolled ? 'text-gray-700' : 'text-white'}`} />
+                )}
+              </button>
+              
+              {user ? (
+                <div className="flex items-center space-x-3">
+                  <div className={`flex items-center space-x-2 px-3 py-1 rounded-full ${
+                    theme === 'dark' ? 'bg-gray-800/50' : 'bg-white/10'
+                  } backdrop-blur`}>
+                    {getUserIcon()}
+                    <span className={`text-sm font-medium ${
+                      scrolled 
+                        ? theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                        : 'text-white'
+                    }`}>
+                      {user.username}
+                    </span>
+                  </div>
+                  <button
+                    onClick={logout}
+                    className="flex items-center space-x-2 px-4 py-2 rounded-lg bg-gradient-to-r from-red-500 to-red-600 text-white hover:from-red-600 hover:to-red-700 transition-all transform hover:scale-105"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    <span>Выход</span>
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setShowAuthModal(true)}
+                  className="flex items-center space-x-2 px-4 py-2 rounded-lg bg-gradient-to-r from-blue-500 to-purple-600 text-white hover:from-blue-600 hover:to-purple-700 transition-all transform hover:scale-105"
+                >
+                  <LogIn className="h-4 w-4" />
+                  <span>Вход</span>
+                </button>
+              )}
+            </div>
+            
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className={`md:hidden ${
+                scrolled 
+                  ? theme === 'dark' ? 'text-white' : 'text-gray-700'
+                  : 'text-white'
+              }`}
+            >
+              {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+            </button>
+          </div>
+        </div>
+      </nav>
+
+      {showAuthModal && (
+        <LoginModal onClose={() => setShowAuthModal(false)} />
+      )}
+    </>
+  );
+};
+
+// Login Modal (без регистрации)
+const LoginModal = ({ onClose }) => {
+  const { login } = useAuth();
+  const { theme } = useTheme();
+  const [formData, setFormData] = useState({
+    username: '',
+    password: ''
+  });
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    
+    const result = await login(formData.username, formData.password);
+    
+    setLoading(false);
+    
+    if (result.success) {
+      onClose();
+    } else {
+      setError(result.error || 'Неверный логин или пароль');
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
+      <div className={`${
+        theme === 'dark' ? 'bg-gray-900 text-white' : 'bg-white'
+      } rounded-2xl p-8 max-w-md w-full shadow-2xl transform transition-all`}>
+        <div className="text-center mb-6">
+          <div className="inline-flex p-3 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 mb-4">
+            <LogIn className="h-8 w-8 text-white" />
+          </div>
+          <h2 className="text-2xl font-bold">Вход в систему</h2>
+          <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'} mt-2`}>
+            Введите ваши учетные данные
+          </p>
+        </div>
+        
+        {error && (
+          <div className={`mb-4 p-3 rounded-lg ${
+            theme === 'dark' 
+              ? 'bg-red-900/30 border border-red-600 text-red-400' 
+              : 'bg-red-100 border border-red-400 text-red-700'
+          }`}>
+            {error}
+          </div>
+        )}
+        
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <input
+            type="text"
+            placeholder="Имя пользователя"
+            value={formData.username}
+            onChange={(e) => setFormData({...formData, username: e.target.value})}
+            className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+              theme === 'dark' 
+                ? 'border-gray-600 bg-gray-800 text-white' 
+                : 'border-gray-300 bg-white'
+            }`}
+            required
+          />
+          
+          <input
+            type="password"
+            placeholder="Пароль"
+            value={formData.password}
+            onChange={(e) => setFormData({...formData, password: e.target.value})}
+            className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+              theme === 'dark' 
+                ? 'border-gray-600 bg-gray-800 text-white' 
+                : 'border-gray-300 bg-white'
+            }`}
+            required
+          />
+          
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full py-3 rounded-lg bg-gradient-to-r from-blue-500 to-purple-600 text-white font-medium hover:from-blue-600 hover:to-purple-700 transition-all transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? (
+              <span className="flex items-center justify-center">
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                Вход...
+              </span>
+            ) : (
+              'Войти'
+            )}
+          </button>
+        </form>
+        
+        <div className={`mt-4 text-center text-sm ${
+          theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
+        }`}>
+          Для получения доступа обратитесь к администратору
+        </div>
+        
+        <button
+          onClick={onClose}
+          className={`mt-4 w-full ${
+            theme === 'dark' ? 'text-gray-400 hover:text-gray-300' : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          Закрыть
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// Deputy Dashboard Component
+const DeputyDashboard = () => {
+  const { user } = useAuth();
+  const { theme } = useTheme();
+  const [stats, setStats] = useState({
+    totalSessions: 24,
+    attendedSessions: 21,
+    attendanceRate: 87.5,
+    votesParticipated: 156,
+    speechesGiven: 8,
+    committeeMemberships: 3
+  });
+
+  const [recentSessions, setRecentSessions] = useState([
+    { id: 1, title: 'Пленарное заседание №234', date: '2025-01-25', attended: true },
+    { id: 2, title: 'Комитет по бюджету', date: '2025-01-24', attended: true },
+    { id: 3, title: 'Рабочая группа по законопроекту', date: '2025-01-23', attended: false },
+  ]);
+
+  return (
+    <div className="min-h-screen pt-20 px-4">
+      <div className="max-w-7xl mx-auto">
+        <div className="mb-8">
+          <h1 className={`text-3xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+            Личный кабинет депутата
+          </h1>
+          <p className={`mt-2 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+            Добро пожаловать, {user?.username}
+          </p>
+        </div>
+
+        {/* Статистика */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <div className={`${
+            theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white'
+          } rounded-xl p-6 shadow-lg`}>
+            <div className="flex items-center justify-between mb-4">
+              <Calendar className="h-8 w-8 text-blue-500" />
+              <span className="text-2xl font-bold">{stats.totalSessions}</span>
+            </div>
+            <h3 className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+              Всего заседаний
+            </h3>
+          </div>
+
+          <div className={`${
+            theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white'
+          } rounded-xl p-6 shadow-lg`}>
+            <div className="flex items-center justify-between mb-4">
+              <CheckCircle className="h-8 w-8 text-green-500" />
+              <span className="text-2xl font-bold">{stats.attendedSessions}</span>
+            </div>
+            <h3 className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+              Посещено заседаний
+            </h3>
+          </div>
+
+          <div className={`${
+            theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white'
+          } rounded-xl p-6 shadow-lg`}>
+            <div className="flex items-center justify-between mb-4">
+              <Activity className="h-8 w-8 text-purple-500" />
+              <span className="text-2xl font-bold">{stats.attendanceRate}%</span>
+            </div>
+            <h3 className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+              Процент посещаемости
+            </h3>
+          </div>
+
+          <div className={`${
+            theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white'
+          } rounded-xl p-6 shadow-lg`}>
+            <div className="flex items-center justify-between mb-4">
+              <BarChart3 className="h-8 w-8 text-orange-500" />
+              <span className="text-2xl font-bold">{stats.votesParticipated}</span>
+            </div>
+            <h3 className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+              Голосований
+            </h3>
+          </div>
+        </div>
+
+        {/* Последние заседания */}
+        <div className={`${
+          theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white'
+        } rounded-xl p-6 shadow-lg`}>
+          <h2 className={`text-xl font-bold mb-4 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+            Последние заседания
+          </h2>
+          <div className="space-y-4">
+            {recentSessions.map(session => (
+              <div key={session.id} className={`flex items-center justify-between p-4 rounded-lg ${
+                theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'
+              }`}>
+                <div>
+                  <h3 className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                    {session.title}
+                  </h3>
+                  <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                    {new Date(session.date).toLocaleDateString('ru-RU')}
+                  </p>
+                </div>
+                <div className={`px-3 py-1 rounded-full text-sm font-medium ${
+                  session.attended 
+                    ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                    : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+                }`}>
+                  {session.attended ? 'Присутствовал' : 'Отсутствовал'}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Admin Dashboard Component
+const AdminDashboard = () => {
+  const { theme } = useTheme();
+  const [activeTab, setActiveTab] = useState('deputies');
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [modalType, setModalType] = useState('');
+
+  const openAddModal = (type) => {
+    setModalType(type);
+    setShowAddModal(true);
+  };
+
+  return (
+    <div className="min-h-screen pt-20 px-4">
+      <div className="max-w-7xl mx-auto">
+        <div className="mb-8">
+          <h1 className={`text-3xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+            Панель администратора
+          </h1>
+          <p className={`mt-2 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+            Управление системой парламента
+          </p>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex space-x-4 mb-6">
+          {['deputies', 'sessions', 'parties'].map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`px-6 py-2 rounded-lg font-medium transition ${
+                activeTab === tab
+                  ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white'
+                  : theme === 'dark'
+                    ? 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              {tab === 'deputies' && 'Депутаты'}
+              {tab === 'sessions' && 'Заседания'}
+              {tab === 'parties' && 'Партии'}
+            </button>
+          ))}
+        </div>
+
+        {/* Content */}
+        <div className={`${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white'} rounded-xl p-6 shadow-lg`}>
+          {activeTab === 'deputies' && (
+            <div>
+              <div className="flex justify-between items-center mb-4">
+                <h2 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                  Управление депутатами
+                </h2>
+                <button
+                  onClick={() => openAddModal('deputy')}
+                  className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg hover:from-green-600 hover:to-green-700 transition"
+                >
+                  <Plus className="h-5 w-5" />
+                  <span>Добавить депутата</span>
+                </button>
+              </div>
+              <div className={`text-center py-8 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                Форма добавления будет здесь
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Stats Card Component
+const StatsCard = ({ icon: Icon, title, value, change, gradient }) => {
+  const { theme } = useTheme();
+  
+  return (
+    <div className={`${
+      theme === 'dark' 
+        ? 'bg-gray-800/50 backdrop-blur border border-gray-700' 
+        : 'bg-white shadow-lg'
+    } rounded-xl p-6 hover:shadow-xl transition-all duration-300 hover:-translate-y-1`}>
+      <div className="flex items-center justify-between mb-4">
+        <div className={`p-3 rounded-xl bg-gradient-to-r ${gradient}`}>
+          <Icon className="h-6 w-6 text-white" />
+        </div>
+        {change && (
+          <span className={`text-sm font-bold ${change > 0 ? 'text-green-500' : 'text-red-500'}`}>
+            {change > 0 ? '↑' : '↓'} {Math.abs(change)}%
+          </span>
+        )}
+      </div>
+      <h3 className={`${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'} text-sm font-medium`}>
+        {title}
+      </h3>
+      <p className={`text-2xl font-bold mt-1 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+        {value}
+      </p>
+    </div>
+  );
+};
+
+// Main Content Components
+const DeputyCard = ({ deputy }) => {
+  const { theme } = useTheme();
+  const attendanceColor = deputy.attendance_rate >= 80 ? 'text-green-500' : 
+                          deputy.attendance_rate >= 60 ? 'text-yellow-500' : 'text-red-500';
+
+  return (
+    <div className={`${
+      theme === 'dark' 
+        ? 'bg-gray-800/50 backdrop-blur border border-gray-700' 
+        : 'bg-white shadow-lg'
+    } rounded-xl p-6 hover:shadow-xl transition-all duration-300 hover:-translate-y-1 cursor-pointer`}>
+      <div className="flex items-start space-x-4">
+        <div className="relative">
+          <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+            <Users className="h-8 w-8 text-white" />
+          </div>
+        </div>
+        <div className="flex-1">
+          <h3 className={`font-bold text-lg ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+            {deputy.full_name}
+          </h3>
+          <div className="flex items-center space-x-2 mt-1">
+            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+              theme === 'dark' ? 'bg-gray-700' : 'bg-gray-100'
+            }`} style={{ backgroundColor: deputy.party_color + '20', color: deputy.party_color }}>
+              {deputy.party_name}
+            </span>
+          </div>
+          <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'} mt-2`}>
+            {deputy.district}
+          </p>
+          <div className="mt-4 flex items-center justify-between">
+            <span className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+              Посещаемость:
+            </span>
+            <div className="flex items-center space-x-2">
+              <div className={`w-24 h-2 ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-200'} rounded-full overflow-hidden`}>
+                <div 
+                  className={`h-full bg-gradient-to-r ${
+                    deputy.attendance_rate >= 80 ? 'from-green-400 to-green-600' :
+                    deputy.attendance_rate >= 60 ? 'from-yellow-400 to-yellow-600' :
+                    'from-red-400 to-red-600'
+                  }`}
+                  style={{ width: `${deputy.attendance_rate}%` }}
+                ></div>
+              </div>
+              <span className={`font-bold ${attendanceColor}`}>
+                {deputy.attendance_rate}%
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const SessionCard = ({ session }) => {
+  const { theme } = useTheme();
+  
+  const typeGradients = {
+    plenary: 'from-blue-500 to-blue-600',
+    committee: 'from-green-500 to-green-600',
+    working_group: 'from-purple-500 to-purple-600',
+    extraordinary: 'from-red-500 to-red-600'
+  };
+
+  const typeLabels = {
+    plenary: 'Пленарное',
+    committee: 'Комитет',
+    working_group: 'Рабочая группа',
+    extraordinary: 'Внеочередное'
+  };
+
+  return (
+    <div className={`${
+      theme === 'dark' 
+        ? 'bg-gray-800/50 backdrop-blur border border-gray-700' 
+        : 'bg-white shadow-lg'
+    } rounded-xl p-6 hover:shadow-xl transition-all duration-300 hover:-translate-y-1`}>
+      <div className="flex justify-between items-start mb-4">
+        <h3 className={`font-bold text-lg flex-1 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+          {session.title}
+        </h3>
+        <span className={`px-3 py-1 rounded-full text-xs font-medium text-white bg-gradient-to-r ${
+          typeGradients[session.session_type] || typeGradients.plenary
+        }`}>
+          {typeLabels[session.session_type] || 'Заседание'}
+        </span>
+      </div>
+      <div className="space-y-3">
+        <div className={`flex items-center text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+          <Calendar className="h-4 w-4 mr-2 text-blue-500" />
+          <span>{new Date(session.date).toLocaleDateString('ru-RU')}</span>
+        </div>
+        <div className={`flex items-center text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+          <Clock className="h-4 w-4 mr-2 text-purple-500" />
+          <span>{new Date(session.date).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</span>
+        </div>
+        <div className={`pt-3 border-t ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
+          <div className="flex items-center justify-between">
+            <span className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+              Явка:
+            </span>
+            <div className="flex items-center space-x-2">
+              <div className={`w-20 h-2 ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-200'} rounded-full overflow-hidden`}>
+                <div 
+                  className="h-full bg-gradient-to-r from-green-400 to-green-600"
+                  style={{ width: `${session.attendance_rate}%` }}
+                ></div>
+              </div>
+              <span className="font-bold text-green-500">{session.attendance_rate}%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const PartyCard = ({ party }) => {
+  const { theme } = useTheme();
+  
+  return (
+    <div className={`${
+      theme === 'dark' 
+        ? 'bg-gray-800/50 backdrop-blur border border-gray-700' 
+        : 'bg-white shadow-lg'
+    } rounded-xl p-6 hover:shadow-xl transition-all duration-300 hover:-translate-y-1`}>
+      <div className="flex items-center space-x-4 mb-4">
+        <div className="relative">
+          <div 
+            className="w-16 h-16 rounded-full shadow-lg"
+            style={{ 
+              background: `linear-gradient(135deg, ${party.color}, ${party.color}dd)` 
+            }}
+          />
+        </div>
+        <div>
+          <h3 className={`font-bold text-lg ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+            {party.name}
+          </h3>
+          <p className="text-sm font-medium" style={{ color: party.color }}>
+            {party.short_name}
+          </p>
+        </div>
+      </div>
+      <div className="space-y-3">
+        <div className="flex justify-between items-center">
+          <span className={`${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'} text-sm`}>
+            Депутатов:
+          </span>
+          <span className={`font-bold text-lg ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+            {party.members_count}
+          </span>
+        </div>
+        {party.founded_date && (
+          <div className="flex justify-between items-center">
+            <span className={`${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'} text-sm`}>
+              Основана:
+            </span>
+            <span className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+              {new Date(party.founded_date).getFullYear()}
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// Main View Component
+const MainView = () => {
+  const { theme } = useTheme();
+  const [statistics, setStatistics] = useState(null);
+  const [deputies, setDeputies] = useState([]);
+  const [sessions, setSessions] = useState([]);
+  const [parties, setParties] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      const partiesResponse = await fetch(`${API_URL}/parties/`);
+      const partiesData = await partiesResponse.json();
+      setParties(partiesData.results || partiesData);
+
+      const deputiesResponse = await fetch(`${API_URL}/deputies/`);
+      const deputiesData = await deputiesResponse.json();
+      setDeputies(deputiesData.results || deputiesData);
+
+      const sessionsResponse = await fetch(`${API_URL}/sessions/`);
+      const sessionsData = await sessionsResponse.json();
+      setSessions(sessionsData.results || sessionsData);
+
+      try {
+        const statsResponse = await fetch(`${API_URL}/statistics/`);
+        const statsData = await statsResponse.json();
+        setStatistics(statsData);
+      } catch {
+        setStatistics({
+          total_deputies: deputies.length || 0,
+          active_deputies: deputies.filter(d => d.is_active).length || 0,
+          total_parties: parties.length || 0,
+          total_sessions: sessions.length || 0,
+          average_attendance: 87.3
+        });
+      }
+
+    } catch (error) {
+      console.error('Error loading data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className={`min-h-screen flex items-center justify-center ${
+        theme === 'dark' ? 'bg-gray-900' : 'bg-gray-50'
+      }`}>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-500 mx-auto mb-4"></div>
+          <div className={`text-2xl font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+            Загрузка...
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {/* Hero Section */}
+      <section className="relative pt-16 pb-32 overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-600 via-purple-600 to-pink-600 opacity-90"></div>
+        <div className="absolute inset-0">
+          <div className="absolute inset-0 bg-black opacity-30"></div>
+        </div>
+        
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20">
+          <div className="text-center">
+            <h1 className="text-5xl md:text-7xl font-bold text-white mb-6">
+              Парламент
+              <span className="block text-3xl md:text-5xl mt-2 bg-gradient-to-r from-yellow-300 to-yellow-500 bg-clip-text text-transparent">
+                Российской Федерации
+              </span>
+            </h1>
+            <p className="text-xl md:text-2xl text-white/90 max-w-3xl mx-auto">
+              Полная информация о депутатах, заседаниях, голосованиях и статистике работы парламента
+            </p>
+            <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
+              <button className="px-8 py-3 bg-white text-purple-600 rounded-lg font-medium hover:bg-gray-100 transition-all transform hover:scale-105">
+                Начать работу
+              </button>
+              <button className="px-8 py-3 bg-transparent border-2 border-white text-white rounded-lg font-medium hover:bg-white hover:text-purple-600 transition-all transform hover:scale-105">
+                Узнать больше
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Statistics Section */}
+      <section id="stats" className="py-16 -mt-16 relative z-10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <StatsCard 
+              icon={Users} 
+              title="Всего депутатов" 
+              value={statistics?.active_deputies || deputies.length}
+              gradient="from-blue-500 to-blue-600"
+            />
+            <StatsCard 
+              icon={Building2} 
+              title="Партий" 
+              value={statistics?.total_parties || parties.length}
+              gradient="from-green-500 to-green-600"
+            />
+            <StatsCard 
+              icon={Calendar} 
+              title="Заседаний проведено" 
+              value={statistics?.total_sessions || sessions.length}
+              gradient="from-purple-500 to-purple-600"
+            />
+            <StatsCard 
+              icon={TrendingUp} 
+              title="Средняя явка" 
+              value={`${statistics?.average_attendance || 0}%`}
+              change={2.3}
+              gradient="from-orange-500 to-orange-600"
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* Deputies Section */}
+      <section id="deputies" className={`py-16 ${theme === 'dark' ? 'bg-gray-800/30' : 'bg-white'}`}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="mb-8">
+            <h2 className={`text-3xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+              Депутаты
+            </h2>
+            <p className={`${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'} mt-2`}>
+              Информация о народных избранниках
+            </p>
+          </div>
+          
+          {deputies.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {deputies.slice(0, 6).map(deputy => (
+                <DeputyCard key={deputy.id} deputy={deputy} />
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-12">
+              <Users className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+              <p className={`${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                Депутаты еще не добавлены
+              </p>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* Sessions Section */}
+      <section id="sessions" className={`py-16 ${theme === 'dark' ? 'bg-gray-900/50' : 'bg-gray-50'}`}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="mb-8">
+            <h2 className={`text-3xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+              Последние заседания
+            </h2>
+            <p className={`${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'} mt-2`}>
+              Информация о проведенных заседаниях
+            </p>
+          </div>
+          
+          {sessions.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {sessions.slice(0, 6).map(session => (
+                <SessionCard key={session.id} session={session} />
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-12">
+              <Calendar className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+              <p className={`${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                Заседания еще не добавлены
+              </p>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* Parties Section */}
+      <section id="parties" className={`py-16 ${theme === 'dark' ? 'bg-gray-800/30' : 'bg-white'}`}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-12">
+            <h2 className={`text-3xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+              Политические партии
+            </h2>
+            <p className={`${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'} mt-2`}>
+              Партии представленные в парламенте
+            </p>
+          </div>
+          
+          {parties.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {parties.map(party => (
+                <PartyCard key={party.id} party={party} />
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-12">
+              <Building2 className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+              <p className={`${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                Партии загружаются...
+              </p>
+            </div>
+          )}
+        </div>
+      </section>
+    </>
+  );
+};
+
+// Main App Component
+const App = () => {
+  const [currentView, setCurrentView] = useState('main');
+  const { user } = useAuth();
+
+  useEffect(() => {
+    if (user?.user_type === 'admin' && currentView === 'main') {
+      setCurrentView('admin');
+    } else if (user?.user_type === 'deputy' && currentView === 'main') {
+      setCurrentView('deputy');
+    }
+  }, [user]);
+
+  return (
+    <ThemeProvider>
+      <AuthProvider>
+        <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+          <Navigation currentView={currentView} setCurrentView={setCurrentView} />
+          {currentView === 'main' && <MainView />}
+          {currentView === 'deputy' && <DeputyDashboard />}
+          {currentView === 'admin' && <AdminDashboard />}
+        </div>
+      </AuthProvider>
+    </ThemeProvider>
+  );
+};
+
+export default App;
