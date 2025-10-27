@@ -54,3 +54,5 @@ Automated builds and deployments:
 - **Build:** Triggered on push to dev/prod branches
 - **Docker Images:** Built and pushed to DockerHub
 - **Stage Deploy:** Automatic deployment to stage environment on dev branch
+
+Build trigger: Вт 28 окт 2025 02:51:02 MSK
