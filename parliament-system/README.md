@@ -47,3 +47,10 @@ git push origin feature/your-feature-name
 ## Авторы
 
 DevOps Team - Parliament System Project
+
+## CI/CD Pipeline
+
+Automated builds and deployments:
+- **Build:** Triggered on push to dev/prod branches
+- **Docker Images:** Built and pushed to DockerHub
+- **Stage Deploy:** Automatic deployment to stage environment on dev branch
