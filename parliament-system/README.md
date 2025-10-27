@@ -1,0 +1,49 @@
+# Parliament System
+
+Система управления парламентом - веб-приложение для учёта депутатов и их активности.
+
+## Технологии
+
+- **Backend:** Python Django
+- **Frontend:** React
+- **Database:** PostgreSQL
+- **CI/CD:** TeamCity
+- **Containerization:** Docker
+
+## Запуск проекта
+
+### Development окружение:
+```bash
+docker-compose up -d
+```
+
+Frontend: http://localhost:3000
+Backend API: http://localhost:8000
+
+### Stage окружение:
+```bash
+cd ~/stage-deployment
+docker-compose -f docker-compose.stage.yml up -d
+```
+
+Frontend: http://localhost:3001
+Backend API: http://localhost:8001
+
+## Разработка
+
+Проект следует методологии GitFlow.
+
+### Создание новой feature:
+```bash
+git checkout dev
+git pull origin dev
+git checkout -b feature/your-feature-name
+# ... делайте изменения ...
+git add .
+git commit -m "Add: описание изменений"
+git push origin feature/your-feature-name
+```
+
+## Авторы
+
+DevOps Team - Parliament System Project
